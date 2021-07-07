@@ -1,21 +1,33 @@
 package com.hlxd.dispatcher.controller;
 
+import cn.hutool.json.JSONArray;
+import cn.hutool.json.JSONUtil;
 import com.hlxd.dispatcher.common.CodeMsg;
 import com.hlxd.dispatcher.common.Result;
 import com.hlxd.dispatcher.entity.AppInfo;
+import com.hlxd.dispatcher.utils.RedisUtil;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/dispatcher")
 public class DispatcherController {
 
-    List<AppInfo> appList = new ArrayList<>();
 
-    @PostMapping ("/registerOrUpdate")
+    @Autowired
+    private RedisUtil redisUtil;
+
+    @PostMapping("/registerOrUpdate")
     public Result<?> registerOrUpdate(@RequestBody List<AppInfo> list) {
+
+        List<AppInfo> appList = JSONUtil.toList((JSONArray) redisUtil.get("app"), AppInfo.class);
+        if (appList == null) {
+            appList = new ArrayList<>();
+        }
 
         for (AppInfo s : list) {
             int sign = 0;
@@ -29,18 +41,22 @@ public class DispatcherController {
                 appList.add(s);
             }
         }
-        return Result.success();
+        JSONArray jsonArray = JSONUtil.parseArray(appList);
+
+        return Result.success(redisUtil.set("app", jsonArray, -1));
     }
 
-    @GetMapping ("/getAppList")
+    @GetMapping("/getAppList")
     public Result<?> getAppList() {
 
+        List<AppInfo> appList = JSONUtil.toList((JSONArray) redisUtil.get("app"), AppInfo.class);
         return Result.success(appList);
     }
 
     @PostMapping("/launch")
-    public Result<?> launch(){
+    public Result<?> launch() {
 
+        List<AppInfo> appList = JSONUtil.toList((JSONArray) redisUtil.get("app"), AppInfo.class);
         for (AppInfo s : appList) {
             if (s.getStatus() == 0) {
                 //todo 启动应用
@@ -53,7 +69,5 @@ public class DispatcherController {
 
     }
 
-//    @PostMapping("/stop/{}")
-    
 
 }
