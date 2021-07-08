@@ -5,10 +5,14 @@ import cn.hutool.json.JSONUtil;
 import com.hlxd.dispatcher.common.CodeMsg;
 import com.hlxd.dispatcher.common.Result;
 import com.hlxd.dispatcher.entity.AppInfo;
+import com.hlxd.dispatcher.entity.Test;
+import com.hlxd.dispatcher.service.SocketServer;
 import com.hlxd.dispatcher.utils.RedisUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
+import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -21,53 +25,30 @@ public class DispatcherController {
     @Autowired
     private RedisUtil redisUtil;
 
-    @PostMapping("/registerOrUpdate")
-    public Result<?> registerOrUpdate(@RequestBody List<AppInfo> list) {
-
-        List<AppInfo> appList = JSONUtil.toList((JSONArray) redisUtil.get("app"), AppInfo.class);
-        if (appList == null) {
-            appList = new ArrayList<>();
-        }
-
-        for (AppInfo s : list) {
-            int sign = 0;
-            for (AppInfo s1 : appList) {
-                if (s.getIp().equals(s1.getIp()) && s.getPort().equals(s1.getPort())) {
-                    s1.setStatus(s.getStatus());
-                    sign = 1;
-                }
-            }
-            if (sign == 0) {
-                appList.add(s);
-            }
-        }
-        JSONArray jsonArray = JSONUtil.parseArray(appList);
-
-        return Result.success(redisUtil.set("app", jsonArray, -1));
-    }
-
-    @GetMapping("/getAppList")
-    public Result<?> getAppList() {
-
-        List<AppInfo> appList = JSONUtil.toList((JSONArray) redisUtil.get("app"), AppInfo.class);
-        return Result.success(appList);
-    }
-
     @PostMapping("/launch")
     public Result<?> launch() {
 
         List<AppInfo> appList = JSONUtil.toList((JSONArray) redisUtil.get("app"), AppInfo.class);
         for (AppInfo s : appList) {
-            if (s.getStatus() == 0) {
+            if (s.getStatus() == AppInfo.IDLE) {
                 //todo 启动应用
 
-                s.setStatus(1);
-                return Result.success(s);
+                s.setStatus(AppInfo.BUSY);
+                JSONArray jsonArray = JSONUtil.parseArray(appList);
+                return Result.success(redisUtil.set("app", jsonArray, -1));
             }
         }
         return Result.error(CodeMsg.BUSY);
 
     }
 
+
+    @PostMapping("/test")
+    public Result<?> test() throws IOException {
+        Socket socket = SocketServer.socketList.get(0);
+//        Socket socket = new Socket("127.0.0.1", 3000);
+        SocketServer.sendMessage(socket, "hahahaover");
+        return Result.success();
+    }
 
 }
