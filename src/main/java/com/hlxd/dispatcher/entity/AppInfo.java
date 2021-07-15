@@ -14,9 +14,7 @@ import java.io.Serializable;
 public class AppInfo implements Serializable {
 
     public final static int IDLE = 0;
-    public final static int BUSY = 1;
-    public final static int START = 2;
-    public final static int STOP = 3;
+    public final static int START = 1;
 
     private String ip;
 
@@ -25,4 +23,6 @@ public class AppInfo implements Serializable {
     private int status;
 
     private String url;
+
+    private String user;
 }

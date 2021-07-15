@@ -1,10 +1,15 @@
 package com.hlxd.dispatcher.service;
 
+import cn.hutool.core.collection.CollectionUtil;
 import cn.hutool.json.JSONUtil;
 import com.hlxd.dispatcher.entity.AppInfo;
+import com.hlxd.dispatcher.entity.Message;
+import com.hlxd.dispatcher.entity.StartMsg;
+import com.hlxd.dispatcher.utils.RedisUtil;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.Resource;
@@ -15,7 +20,6 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -35,6 +39,11 @@ public class SocketServer {
     @Resource
     private DispatcherService dispatcherService;
 
+    @Autowired
+    private RedisUtil redisUtil;
+
+    @Autowired
+    private WebSocketServer webSocketServer;
 
     public void start() {
         log.info("port: {}", port);
@@ -50,7 +59,12 @@ public class SocketServer {
         while (started) {
             try {
                 Socket socket = serverSocket.accept();
+                log.info(socket.toString());
                 socketList.add(socket);
+//                String ip = socket.getInetAddress().getHostAddress();
+//                int port = socket.getPort();
+//                RedisSocket rs = new RedisSocket(socket);
+//                redisUtil.set(ip, rs);
                 Runnable runnable = () -> {
                     try {
 //                        //接收客户端数据
@@ -81,8 +95,34 @@ public class SocketServer {
                                     break;
                                 }
                             }
-                            String content = sb.toString();
-                            System.out.println("接收到客户端消息" + content.substring(0,content.length()-4));
+                            String info = sb.toString();
+                            String content = info.substring(0, info.length() - 4);
+                            log.info("接收到客户端消息" + content);
+                            Message message = JSONUtil.toBean(content, Message.class);
+                            boolean status = true;
+                            List<AppInfo> appList = message.getAppList();
+                            if (CollectionUtil.isNotEmpty(appList)) {
+                                status = dispatcherService.registerOrUpdate(appList);
+                                if (message.getSign() == 0) {
+                                    //todo 将url转发给前端
+                                    AppInfo appInfo = appList.get(0);
+                                    if (appInfo != null) {
+                                        webSocketServer.sendInfo(appInfo.getUser(), appInfo.getUrl());
+                                    }
+                                }
+                            }
+
+                            //返回给客户端
+                            StartMsg msg;
+                            if (status) {
+                                msg = new StartMsg(null, null, 0, null);
+                            } else {
+                                msg = new StartMsg(null, null, 1, "更新失败");
+                            }
+                            sendMessage(socket, msg + "over");
+
+//                            List<AppInfo> appList = JSONUtil.toList(content, AppInfo.class);
+
 
 //                            //往客户端发送数据
 //                            long nowtime = (new Date()).getTime();
@@ -96,6 +136,7 @@ public class SocketServer {
                     } finally {
                         try {
                             socket.close();
+//                            redisUtil.del(ip);
                             socketList.clear();
                         } catch (IOException e) {
                             e.printStackTrace();
